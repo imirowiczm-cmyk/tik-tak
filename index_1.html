@@ -1,0 +1,607 @@
+<!doctype html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<style>[hidden]{display:none!important}img{max-width:100%}</style>
+<title>Tik-Tak Zegarek</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;800&family=Nunito:wght@600;700;800&display=swap">
+<style>
+/* Layout: jeden ekran; pasek (dom / postęp / powtórz), środek = zegar(y) lub zadanie, dół = napis dla rodzica. Panel rodzica = przewijany dokument. */
+:root{
+  --bg:#E2F0EE; --bg2:#CFE6E2; --ink:#1E2B3A; --muted:#566A79;
+  --face:#FFFFFF; --hour:#E4483A; --minute:#2A68D1; --sun:#FFBE33;
+  --ok:#25A06A; --okd:#1B7A50; --q1:#FFF3CF; --q2:#E7F1FF; --r24:#8A55C9;
+  --card:#F8FCFB; --lcdbg:#1E2B3A; --lcd:#7DF0C2; --cake:#F7C6D0; --cake2:#E58FA5;
+  --display:"Baloo 2","Trebuchet MS",system-ui,sans-serif;
+  --body:"Nunito",system-ui,-apple-system,"Segoe UI",sans-serif;
+  color-scheme:light;
+}
+html,body{height:100%}
+body{background:var(--bg);color:var(--ink);font-family:var(--body);margin:0;overflow-x:hidden;
+  background-image:radial-gradient(circle at 15% 10%,var(--bg2) 0 12%,transparent 12.5%),radial-gradient(circle at 92% 85%,var(--bg2) 0 16%,transparent 16.5%);}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+button{font:inherit;color:inherit;cursor:pointer;border:0;background:none;touch-action:manipulation}
+button:focus-visible,input:focus-visible,select:focus-visible{outline:4px solid var(--minute);outline-offset:3px}
+.app{height:100%;display:flex;flex-direction:column;padding-inline:16px;padding-block:10px;max-width:980px;margin:0 auto}
+.screen{flex:1;display:flex;flex-direction:column;min-height:0}
+.bar{display:flex;align-items:center;gap:12px;min-height:64px}
+.bar .grow{flex:1;display:flex;justify-content:center;align-items:center;gap:8px;flex-wrap:wrap;min-width:0}
+.ibtn{width:58px;height:58px;border-radius:50%;background:var(--face);display:grid;place-items:center;box-shadow:0 4px 0 var(--bg2);flex:none}
+.ibtn:active{transform:translateY(3px);box-shadow:0 1px 0 var(--bg2)}
+.ibtn svg{width:30px;height:30px}
+.ibtn.sm{width:46px;height:46px}.ibtn.sm svg{width:24px;height:24px}
+.dot{width:16px;height:16px;border-radius:50%;background:var(--face);border:3px solid var(--bg2)}
+.dot.done{background:var(--ok);border-color:var(--ok)}
+.dot.now{border-color:var(--minute)}
+.lvl{font-family:var(--display);font-weight:800;font-size:22px}
+.stage{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;min-height:0}
+.sub{font-weight:800;font-size:clamp(16px,2.5vw,21px);background:var(--face);border-radius:22px;padding:12px 18px;
+  max-width:680px;text-align:center;line-height:1.35;display:flex;gap:12px;align-items:center;min-height:56px}
+.sub svg{width:26px;height:26px;flex:none;color:var(--minute)}
+.bigclock{width:min(80vw,46vh,370px);aspect-ratio:1;max-width:100%;touch-action:none;user-select:none}
+.bigclock svg{width:100%;height:100%;display:block}
+.opts{display:flex;gap:clamp(10px,3vw,28px);justify-content:center;flex-wrap:wrap}
+.opt{width:min(27vw,30vh,200px);aspect-ratio:1;border-radius:50%;padding:6px;background:var(--card);box-shadow:0 6px 0 var(--bg2);transition:transform .15s,opacity .3s}
+.opt svg{width:100%;height:100%;display:block}
+.opt:active{transform:scale(.96)}
+.opt.wrong{opacity:.3;animation:shake .4s}
+.opt.right{box-shadow:0 0 0 8px var(--ok)}
+.dig{font-family:var(--display);font-weight:800;font-variant-numeric:tabular-nums;font-size:clamp(30px,7vw,46px);background:var(--lcdbg);color:var(--lcd);
+  border-radius:18px;padding:10px 22px;min-width:150px;text-align:center;box-shadow:0 6px 0 var(--bg2);transition:opacity .3s}
+.dig.wrong{opacity:.3;animation:shake .4s}.dig.right{box-shadow:0 0 0 8px var(--ok)}
+@keyframes shake{25%{transform:translateX(-8px)}50%{transform:translateX(8px)}75%{transform:translateX(-4px)}}
+.go{display:flex;align-items:center;gap:12px;background:var(--ok);color:#fff;border-radius:999px;padding:14px 30px;font-family:var(--display);font-weight:800;font-size:26px;box-shadow:0 6px 0 var(--okd)}
+.go:active{transform:translateY(4px);box-shadow:0 2px 0 var(--okd)}
+.go svg{width:34px;height:34px}
+.go.blue{background:var(--minute);box-shadow:0 6px 0 #1d4c9c}
+.row{display:flex;gap:14px;flex-wrap:wrap;justify-content:center;align-items:center}
+.evt{display:flex;align-items:center;gap:14px}
+.evt svg{width:56px;height:56px}
+.pulse{animation:pulse .7s ease-in-out infinite alternate}
+@keyframes pulse{from{opacity:1}to{opacity:.25}}
+/* home */
+h1{font-family:var(--display);font-weight:800;font-size:clamp(40px,8vw,64px);line-height:1;margin:0;text-wrap:balance;text-align:center}
+h1 .t1{color:var(--hour)} h1 .t2{color:var(--minute)}
+.homebar{display:flex;align-items:center;justify-content:space-between;width:100%;gap:12px}
+.tiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(148px,1fr));gap:14px;width:100%;padding-block:8px 16px}
+.tile{background:var(--card);border-radius:26px;padding:12px 10px 10px;display:flex;flex-direction:column;align-items:center;gap:6px;box-shadow:0 6px 0 var(--bg2);position:relative}
+.tile:active{transform:translateY(4px);box-shadow:0 2px 0 var(--bg2)}
+.tile.locked{opacity:.45}
+.tile.rec{box-shadow:0 0 0 5px var(--sun),0 6px 0 var(--bg2);animation:glow 1.4s ease-in-out infinite alternate}
+@keyframes glow{to{box-shadow:0 0 0 10px var(--sun),0 6px 0 var(--bg2)}}
+.tile .mini{width:92px;height:92px}
+.tile .num{position:absolute;top:8px;left:12px;font-family:var(--display);font-weight:800;font-size:22px;color:var(--muted)}
+.tile .badge{position:absolute;top:8px;right:10px;width:30px;height:30px}
+.tile .name{font-weight:800;font-size:15px;line-height:1.15;text-align:center;min-height:2.3em;display:flex;align-items:center}
+.stars{display:flex;gap:2px;min-height:22px}
+.stars svg{width:22px;height:22px}
+.home-scroll{flex:1;overflow-y:auto;display:flex;flex-direction:column;align-items:center;gap:6px;padding-top:4px}
+.banner{background:#FFF0D6;border-radius:14px;padding:8px 14px;font-size:14px;font-weight:700;max-width:560px;text-align:center}
+.bigstars{display:flex;gap:10px}
+.bigstars svg{width:clamp(64px,15vw,104px);height:auto}
+.mission{display:flex;gap:14px;align-items:center;background:var(--face);border-radius:22px;padding:14px 18px;max-width:560px;font-weight:800;font-size:17px;line-height:1.35}
+.mission svg{width:52px;height:52px;flex:none}
+.digital{font-family:var(--display);font-weight:800;font-size:28px;display:flex;gap:18px;align-items:center;font-variant-numeric:tabular-nums}
+.digital .pm{color:var(--r24)}
+#start{position:fixed;inset:0;background:var(--bg);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:28px;z-index:5;padding:16px}
+#start .bigclock{width:min(60vw,40vh,280px)}
+#fx{position:fixed;inset:0;pointer-events:none;z-index:9}
+/* parent */
+.pscroll{flex:1;overflow-y:auto;padding-bottom:24px}
+.pdoc{max-width:700px;margin:0 auto;display:flex;flex-direction:column;gap:16px;font-size:15.5px;line-height:1.55}
+.pdoc h2{font-family:var(--display);font-size:30px;margin:0;line-height:1.1}
+.pdoc h3{font-family:var(--display);font-size:21px;margin:0 0 6px;line-height:1.2}
+.pcard{background:var(--face);border-radius:20px;padding:16px 18px;min-width:0}
+.pcard p,.pcard ul,.pcard ol{margin:6px 0}
+.pcard li{margin:3px 0}
+.tbl{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-size:14.5px}
+th,td{text-align:left;padding:7px 8px;border-bottom:1px solid var(--bg2);vertical-align:top}
+th{font-size:12.5px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted)}
+.pill{display:inline-block;border-radius:999px;padding:2px 10px;font-size:13px;font-weight:800;white-space:nowrap}
+.p-lock{background:var(--bg2);color:var(--muted)}.p-go{background:var(--q2);color:var(--minute)}.p-ok{background:#D5F2E4;color:var(--okd)}
+.field{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin:6px 0}
+input[type=text],input[type=number],select{font:inherit;padding:8px 10px;border-radius:10px;border:2px solid var(--bg2);background:var(--card);color:var(--ink);min-width:0}
+.btn{background:var(--bg2);border-radius:12px;padding:9px 14px;font-weight:800}
+.btn.red{background:#FBD9D5;color:#9C2A1F}
+.gate{display:flex;flex-direction:column;align-items:center;gap:14px;padding-top:8vh;text-align:center}
+.muted{color:var(--muted)}
+@media (prefers-reduced-motion:reduce){.pulse,.opt.wrong,.dig.wrong,.tile.rec{animation:none}}
+</style>
+</head>
+<body>
+
+<div class="app">
+  <section class="screen" id="home" hidden>
+    <div class="home-scroll">
+      <div class="homebar"><span style="width:46px"></span><h1><span class="t1">Tik</span>-<span class="t2">Tak</span></h1>
+        <button class="ibtn sm" id="bParent" aria-label="Panel rodzica"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 00.3 1.8l.1.1a2 2 0 11-2.8 2.8l-.1-.1a1.7 1.7 0 00-1.8-.3 1.7 1.7 0 00-1 1.5V21a2 2 0 11-4 0v-.1a1.7 1.7 0 00-1.1-1.5 1.7 1.7 0 00-1.8.3l-.1.1a2 2 0 11-2.8-2.8l.1-.1a1.7 1.7 0 00.3-1.8 1.7 1.7 0 00-1.5-1H3a2 2 0 110-4h.1a1.7 1.7 0 001.5-1.1 1.7 1.7 0 00-.3-1.8l-.1-.1a2 2 0 112.8-2.8l.1.1a1.7 1.7 0 001.8.3H9a1.7 1.7 0 001-1.5V3a2 2 0 114 0v.1a1.7 1.7 0 001 1.5 1.7 1.7 0 001.8-.3l.1-.1a2 2 0 112.8 2.8l-.1.1a1.7 1.7 0 00-.3 1.8V9a1.7 1.7 0 001.5 1H21a2 2 0 110 4h-.1a1.7 1.7 0 00-1.5 1z"/></svg></button></div>
+      <div class="tiles" id="tiles"></div>
+      <div class="banner" id="nov" hidden>Ta przeglądarka nie ma polskiego głosu, więc gra może mówić z obcym akcentem albo milczeć. Najlepiej działa Chrome lub Edge; na telefonie zainstaluj język polski w ustawieniach syntezy mowy.</div>
+    </div>
+  </section>
+
+  <section class="screen" id="game" hidden>
+    <div class="bar">
+      <button class="ibtn" id="bHome" aria-label="Wróć do menu"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11l9-7 9 7"/><path d="M5 10v10h14V10"/><path d="M10 20v-6h4v6"/></svg></button>
+      <div class="grow" id="dots"></div>
+      <button class="ibtn" id="bRepeat" aria-label="Powtórz"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9v6h4l5 4V5L8 9z" fill="currentColor"/><path d="M16.5 8.5a5 5 0 010 7"/><path d="M19 6a8.5 8.5 0 010 12"/></svg></button>
+    </div>
+    <div class="stage" id="stage"></div>
+    <div class="row" style="padding-block:8px 6px"><div class="sub"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M4 9v6h4l5 4V5L8 9z"/></svg><span id="subt"></span></div></div>
+  </section>
+
+  <section class="screen" id="parent" hidden>
+    <div class="bar"><button class="ibtn" id="bPBack" aria-label="Wróć"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg></button><div class="grow"><span class="lvl">Panel rodzica</span></div><span style="width:58px"></span></div>
+    <div class="pscroll" id="pbody"></div>
+  </section>
+</div>
+
+<div id="start">
+  <div class="bigclock" id="startClock"></div>
+  <h1><span class="t1">Tik</span>-<span class="t2">Tak</span></h1>
+  <p id="startHint" class="muted" style="margin:0;text-align:center;max-width:420px" hidden>Rodzicu: w panelu rodzica (zębatka w menu) ustawisz imię dziecka oraz to, czy gra ma mówić do chłopca, czy do dziewczynki.</p>
+  <button class="go" id="bStart" aria-label="Start"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M7 4l13 8-13 8z"/></svg>Start</button>
+</div>
+<canvas id="fx"></canvas>
+
+<script>
+/* ================= Polskie słowa ================= */
+const NOM=['','pierwsza','druga','trzecia','czwarta','piąta','szósta','siódma','ósma','dziewiąta','dziesiąta','jedenasta','dwunasta','trzynasta','czternasta','piętnasta','szesnasta','siedemnasta','osiemnasta','dziewiętnasta','dwudziesta','dwudziesta pierwsza','dwudziesta druga','dwudziesta trzecia'];
+const LOC=['','pierwszej','drugiej','trzeciej','czwartej','piątej','szóstej','siódmej','ósmej','dziewiątej','dziesiątej','jedenastej','dwunastej','trzynastej','czternastej','piętnastej','szesnastej','siedemnastej','osiemnastej','dziewiętnastej','dwudziestej','dwudziestej pierwszej','dwudziestej drugiej','dwudziestej trzeciej'];
+/* liczby jako rzeczowniki: jedynka, dwójka… */
+const NOMN=['','jedynka','dwójka','trójka','czwórka','piątka','szóstka','siódemka','ósemka','dziewiątka','dziesiątka','jedenastka','dwunastka'];
+const GENN=['','jedynki','dwójki','trójki','czwórki','piątki','szóstki','siódemki','ósemki','dziewiątki','dziesiątki','jedenastki','dwunastki'];
+const ACC=['','jedynkę','dwójkę','trójkę','czwórkę','piątkę','szóstkę','siódemkę','ósemkę','dziewiątkę','dziesiątkę','jedenastkę','dwunastkę'];
+const INS=['','jedynką','dwójką','trójką','czwórką','piątką','szóstką','siódemką','ósemką','dziewiątką','dziesiątką','jedenastką','dwunastką'];
+const LOCN=['','jedynce','dwójce','trójce','czwórce','piątce','szóstce','siódemce','ósemce','dziewiątce','dziesiątce','jedenastce','dwunastce'];
+const MLOC={0:'na dwunastce, na samej górze',15:'na trójce',30:'na szóstce, na samym dole',45:'na dziewiątce'};
+const MSUF={0:'',15:' piętnaście',30:' trzydzieści',45:' czterdzieści pięć'};
+const cap=s=>s[0].toUpperCase()+s.slice(1);
+
+const h12=h=>((h-1)%12)+1;
+const nxt=h=>h12(h)%12+1;
+const toT=t=>(t.h%12)*60+t.m;
+const norm=T=>((Math.round(T)%720)+720)%720;
+function phrase12(t){const h=h12(t.h);
+  if(t.m===0)return NOM[h];
+  if(t.m===30)return 'wpół do '+LOC[nxt(h)];
+  if(t.m===15)return 'kwadrans po '+LOC[h];
+  return 'za kwadrans '+NOM[nxt(h)];}
+const phrase24=t=>NOM[t.h]+MSUF[t.m];
+const phrase=t=>t.h>12?phrase24(t):phrase12(t);
+const isJest=t=>(t.m===0&&t.h<=12?'godzina ':'')+phrase(t);
+const lc=s=>s[0].toLowerCase()+s.slice(1);
+const MEXP={0:'na dwunastce. To znaczy zero minut, pełna godzina',15:'na trójce. To znaczy piętnaście minut, jeden kwadrans',30:'na szóstce. To znaczy trzydzieści minut, pół godziny',45:'na dziewiątce. To znaczy czterdzieści pięć minut. Do pełnej godziny brakuje jednego kwadransa'};
+const MACC={0:'na dwunastkę, na samą górę',15:'na trójkę',30:'na szóstkę, na sam dół',45:'na dziewiątkę'};
+/* wyjaśnienie: gdzie są wskazówki i co to znaczy */
+function explain(T,pm){T=norm(T);const h=Math.floor(T/60)%12||12,m=T%60,n=h%12+1;
+  const hp=m===0?`jest na ${LOCN[h]}`:m===15?`minęła ${ACC[h]}`:m===30?`minęła ${ACC[h]} i jest w połowie drogi do ${GENN[n]}`:`minęła ${ACC[h]} i jest prawie na ${LOCN[n]}`;
+  const c=m===0?`Dlatego jest godzina ${NOM[h]}.`:m===15?`Minęła ${NOM[h]}, dlatego jest kwadrans po ${LOC[h]}.`:`Idziemy do ${LOC[n]}, dlatego jest ${phrase12({h,m})}.`;
+  return `Mała wskazówka ${hp}, a duża jest ${S.brief?MEXP[m].split('.')[0]:MEXP[m]}. ${c}`+(pm?` Po południu mówimy: ${phrase24({h:h===12?12:h+12,m})}.`:'');}
+const fmt=t=>t.h+':'+String(t.m).padStart(2,'0');
+
+/* ================= Zapis ================= */
+const today=()=>{const d=new Date();return d.getFullYear()+'-'+(d.getMonth()+1)+'-'+d.getDate();};
+const DEFAULT_EVENTS=[{n:'Obiad',h:15,m:0},{n:'Plac zabaw',h:17,m:0},{n:'Kolacja',h:18,m:30},{n:'Bajka',h:19,m:0},{n:'Spanie',h:20,m:0}];
+let S={brief:false,gender:'',progress:{},traps:{},day:{date:'',ms:0},name:'',events:DEFAULT_EVENTS,unlockAll:false,limit:10,daysPlayed:[]};
+try{const raw=localStorage.getItem('tiktak-v2');if(raw)S=Object.assign(S,JSON.parse(raw));}catch(e){}
+function save(){try{localStorage.setItem('tiktak-v2',JSON.stringify(S));}catch(e){}}
+const G=(m,f,n)=>S.gender==='m'?m:S.gender==='f'?f:n;
+const P=i=>S.progress[i]||(S.progress[i]={best:0,days:[],plays:0});
+const mastered=i=>P(i).days.length>=2;
+const unlocked=i=>S.unlockAll||i===0||P(i-1).best>=3;
+function addTrap(k){S.traps[k]=(S.traps[k]||0)+1;save();}
+function tickTime(){if(S.day.date!==today())S.day={date:today(),ms:0};}
+setInterval(()=>{if(!$('game').hidden&&!document.hidden){tickTime();S.day.ms+=5000;save();}},5000);
+const overLimit=()=>{tickTime();return S.day.ms>=S.limit*60000;};
+
+/* ================= Mowa ================= */
+let voice=null,voicesChecked=false;
+const synth=window.speechSynthesis;
+function loadVoices(){if(!synth)return;const v=synth.getVoices();if(!v.length)return;voicesChecked=true;
+  const pl=v.filter(x=>/^pl/i.test(x.lang));
+  voice=pl.find(x=>/natural|online|google|zosia|paulina|neural/i.test(x.name))||pl[0]||null;}
+if(synth){loadVoices();synth.onvoiceschanged=loadVoices;}
+let sayTok=0,lastSay='';
+function say(text){const my=++sayTok;lastSay=text;$('subt').textContent=text;
+  return new Promise(res=>{
+    const done=()=>{clearTimeout(safety);res(my===sayTok);};
+    const safety=setTimeout(done,text.length*110+2500);
+    if(!synth){setTimeout(done,text.length*55);return;}
+    synth.cancel();
+    setTimeout(()=>{if(my!==sayTok){done();return;}
+      const u=new SpeechSynthesisUtterance(text);u.lang='pl-PL';if(voice)u.voice=voice;u.rate=0.9;u.pitch=1.05;
+      u.onend=done;u.onerror=done;synth.speak(u);},60);
+  });}
+const wait=ms=>new Promise(r=>setTimeout(r,ms));
+function hush(){sayTok++;if(synth)synth.cancel();}
+
+/* ================= Zegar SVG ================= */
+class Clock{
+  constructor(host,{ring24=false,quarters=false,drag=false,tap=false,hands=true}={}){
+    this.T=0;
+    let s=`<svg viewBox="-110 -110 220 220" role="img" aria-label="zegar"><circle r="106" fill="var(--ink)"/><circle r="100" fill="var(--face)"/>`;
+    if(quarters){const w=(a,b,c)=>{const p=d=>[96*Math.sin(d*Math.PI/180),-96*Math.cos(d*Math.PI/180)];const[x1,y1]=p(a),[x2,y2]=p(b);return`<path d="M0 0L${x1} ${y1}A96 96 0 0 1 ${x2} ${y2}Z" fill="${c}"/>`;};
+      s+=w(0,90,'var(--q1)')+w(90,180,'var(--q2)')+w(180,270,'var(--q1)')+w(270,360,'var(--q2)');}
+    s+='<g class="marks"></g>';
+    for(let i=0;i<60;i++){const big=i%5===0,a=i*6*Math.PI/180,r1=big?86:91;
+      s+=`<line x1="${r1*Math.sin(a)}" y1="${-r1*Math.cos(a)}" x2="${97*Math.sin(a)}" y2="${-97*Math.cos(a)}" stroke="var(--ink)" stroke-width="${big?3.2:1.3}" stroke-linecap="round"/>`;}
+    for(let i=1;i<=12;i++){const a=i*30*Math.PI/180;
+      s+=`<text x="${72*Math.sin(a)}" y="${-72*Math.cos(a)+7.5}" text-anchor="middle" font-family="Baloo 2,Trebuchet MS,sans-serif" font-weight="800" font-size="22" fill="var(--ink)">${i}</text>`;
+      if(ring24)s+=`<text x="${49*Math.sin(a)}" y="${-49*Math.cos(a)+4.5}" text-anchor="middle" font-family="Nunito,sans-serif" font-weight="800" font-size="12" fill="var(--r24)">${i+12}</text>`;}
+    s+=`<g class="hh"${hands?'':' visibility="hidden"'}><line x1="0" y1="10" x2="0" y2="-48" stroke="var(--hour)" stroke-width="11" stroke-linecap="round"/></g>`;
+    s+=`<g class="mh"${hands?'':' visibility="hidden"'}><line x1="0" y1="12" x2="0" y2="-82" stroke="var(--minute)" stroke-width="6.5" stroke-linecap="round"/></g>`;
+    s+=`<circle r="8" fill="var(--ink)"/><circle r="3" fill="var(--face)"/></svg>`;
+    host.innerHTML=s;this.svg=host.querySelector('svg');this.hh=this.svg.querySelector('.hh');this.mh=this.svg.querySelector('.mh');this.mk=this.svg.querySelector('.marks');
+    this.render();if(drag)this.bindDrag();if(tap)this.bindTap();}
+  set(T){this.T=T;this.render();}
+  render(){const T=norm(this.T);this.hh.setAttribute('transform',`rotate(${T/2})`);this.mh.setAttribute('transform',`rotate(${(T%60)*6})`);}
+  animateTo(T,dur=1200){const from=this.T;let to=T;while(to<from)to+=720;if(to-from>720)to-=720;
+    if(matchMedia('(prefers-reduced-motion:reduce)').matches)dur=1;
+    return new Promise(res=>{const t0=performance.now();const step=now=>{const k=Math.min(1,(now-t0)/dur),e=k<.5?2*k*k:1-Math.pow(-2*k+2,2)/2;
+      this.T=from+(to-from)*e;this.render();if(k<1)requestAnimationFrame(step);else{this.T=to%720;this.render();res();}};requestAnimationFrame(step);});}
+  hl(which){this.hh.classList.toggle('pulse',which==='hour');this.mh.classList.toggle('pulse',which==='minute');}
+  mark(n,color){const a=n*30*Math.PI/180;const c=document.createElementNS('http://www.w3.org/2000/svg','circle');
+    c.setAttribute('cx',72*Math.sin(a));c.setAttribute('cy',-72*Math.cos(a));c.setAttribute('r',15);c.setAttribute('fill',color);this.mk.appendChild(c);return c;}
+  pos(e){const r=this.svg.getBoundingClientRect();const dx=e.clientX-(r.left+r.width/2),dy=e.clientY-(r.top+r.height/2);
+    return{a:(Math.atan2(dx,-dy)*180/Math.PI+360)%360,d:Math.hypot(dx,dy)/(r.width/2)*110};}
+  bindTap(){this.svg.addEventListener('pointerdown',e=>{e.preventDefault();this.ontap&&this.ontap(this.pos(e));});}
+  bindDrag(){let mode=null;const svg=this.svg;
+    const diff=(a,b)=>{const d=Math.abs(a-b)%360;return d>180?360-d:d;};
+    const apply=p=>{let T=norm(this.T);const m=T%60;
+      if(mode==='hour'){let h=Math.round(p.a/30-m/60);h=((h%12)+12)%12;T=h*60+m;}
+      else{const nm=(Math.round(p.a/90)*15)%60;let d=nm-m;if(d>30)d-=60;if(d<-30)d+=60;T=(T+d+720)%720;}
+      if(T!==this.T){this.T=T;this.render();this.onchange&&this.onchange(T);}};
+    svg.addEventListener('pointerdown',e=>{e.preventDefault();svg.setPointerCapture(e.pointerId);const p=this.pos(e);
+      mode=(p.d<70&&diff(p.a,norm(this.T)/2)<32)?'hour':'minute';this.hl(null);apply(p);});
+    svg.addEventListener('pointermove',e=>{if(mode)apply(this.pos(e));});
+    const end=()=>{if(mode){mode=null;this.onrelease&&this.onrelease();}};
+    svg.addEventListener('pointerup',end);svg.addEventListener('pointercancel',end);}
+}
+function pieSVG(k){let s='<svg viewBox="-110 -110 220 220"><circle r="100" fill="var(--face)" stroke="var(--ink)" stroke-width="6"/>';
+  for(let i=0;i<k;i++){const a=i*90,b=a+90,p=d=>[94*Math.sin(d*Math.PI/180),-94*Math.cos(d*Math.PI/180)];const[x1,y1]=p(a),[x2,y2]=p(b);
+    s+=`<path d="M0 0L${x1} ${y1}A94 94 0 0 1 ${x2} ${y2}Z" fill="var(--cake)"/><path d="M${x1*.8} ${y1*.8}A75 75 0 0 1 ${x2*.8} ${y2*.8}" fill="none" stroke="var(--cake2)" stroke-width="7" stroke-dasharray="2 12" stroke-linecap="round"/>`;}
+  s+='<line x1="0" y1="-97" x2="0" y2="97" stroke="var(--ink)" stroke-width="4"/><line x1="-97" y1="0" x2="97" y2="0" stroke="var(--ink)" stroke-width="4"/></svg>';return s;}
+
+/* ================= Ikony ================= */
+const STAR=on=>`<svg viewBox="0 0 24 24"><path d="M12 2.5l2.9 6 6.6.8-4.9 4.6 1.3 6.5L12 17.2l-5.9 3.2 1.3-6.5L2.5 9.3l6.6-.8z" fill="${on?'var(--sun)':'var(--bg2)'}" stroke="${on?'#D99400':'var(--bg2)'}" stroke-width="1.2" stroke-linejoin="round"/></svg>`;
+const ICON={play:'<svg viewBox="0 0 24 24" fill="currentColor"><path d="M7 4l13 8-13 8z"/></svg>',
+ check:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12.5l5 5L20 6"/></svg>',
+ again:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12a8 8 0 1 0 2.5-5.8"/><path d="M4 4v5h5"/></svg>',
+ speak:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9v6h4l5 4V5L8 9z" fill="currentColor"/><path d="M16.5 8.5a5 5 0 010 7"/></svg>',
+ lock:'<svg class="badge" viewBox="0 0 24 24" fill="none" stroke="var(--muted)" stroke-width="2.6" stroke-linecap="round"><rect x="5" y="11" width="14" height="10" rx="2" fill="var(--bg2)"/><path d="M8 11V8a4 4 0 018 0v3"/></svg>',
+ done:'<svg class="badge" viewBox="0 0 24 24"><circle cx="12" cy="12" r="11" fill="var(--ok)"/><path d="M6.5 12.5l3.5 3.5 7.5-8" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+ sun:'<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="5" fill="var(--sun)"/><g stroke="var(--sun)" stroke-width="2.2" stroke-linecap="round"><path d="M12 1.5v3M12 19.5v3M1.5 12h3M19.5 12h3M4.6 4.6l2.1 2.1M17.3 17.3l2.1 2.1M4.6 19.4l2.1-2.1M17.3 6.7l2.1-2.1"/></g></svg>',
+ moon:'<svg viewBox="0 0 24 24"><path d="M20 14.5A8.5 8.5 0 019.5 4a8.5 8.5 0 1010.5 10.5z" fill="var(--r24)"/></svg>',
+ target:'<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="var(--hour)"/><circle cx="12" cy="12" r="6.5" fill="var(--face)"/><circle cx="12" cy="12" r="3" fill="var(--hour)"/></svg>',
+ cake:'<svg viewBox="-110 -110 220 220"><circle r="100" fill="var(--cake)" stroke="var(--ink)" stroke-width="6"/><path d="M0 0L0 -97A97 97 0 0 1 97 0Z" fill="var(--face)"/><line x1="0" y1="-97" x2="0" y2="97" stroke="var(--ink)" stroke-width="4"/><line x1="-97" y1="0" x2="97" y2="0" stroke="var(--ink)" stroke-width="4"/></svg>'};
+
+/* ================= Program nauki ================= */
+const rnd=a=>a[Math.floor(Math.random()*a.length)];
+const H=[1,2,3,4,5,6,7,8,9,10,11,12];
+const RULE1='Mała wskazówka mówi, która godzina. Duża wskazówka mówi, ile minęło.';
+const RULE2='Godzinę czytamy z liczby, którą mała wskazówka już minęła.';
+const RULE3='Wpół do i za kwadrans mówią o godzinie, która dopiero będzie.';
+const LEVELS=[
+ {name:'Rozgrzewka',say:'Rozgrzewka',hands:false,demoT:0,cake:true,
+  goal:'Liczby 1–12 w kółku (po 12 jest 1), przed/po, połowa i ćwiartka',
+  rounds:['num','frac','num','frac','num','frac'],
+  intro:[{T:0,s:'Zanim nauczymy się zegara, zrobimy rozgrzewkę.'},{T:0,s:'Na zegarze liczby stoją w kółku, od jedynki do dwunastki.'},{T:0,s:'Po dwunastce nie ma trzynastki. Po dwunastce znowu jest jedynka, bo zegar to koło.'},{T:0,s:'Pobawimy się też tortem. Tort można pokroić na pół albo na cztery kawałki.'}],
+  mission:'Znajdź w domu zegar ze wskazówkami i pokaż go rodzicom.'},
+ {name:'Dwie wskazówki',say:'Dwie wskazówki',demoT:610,
+  goal:'Odróżnia małą (godziny) od dużej (minuty)',
+  rounds:['hand','hand','hand','hand','hand','hand'],
+  intro:[{T:610,s:'Zegar ma dwie wskazówki.'},{T:610,hl:'hour',s:'Ta mała, krótsza, czerwona, pokazuje godzinę.'},{T:610,hl:'minute',s:'Ta duża, dłuższa, niebieska, pokazuje minuty.'},{T:640,hl:'minute',s:'Duża wskazówka biega szybko.'},{T:700,hl:'hour',s:'Mała idzie powoli.'},{T:700,s:'Zapamiętaj: '+RULE1}],
+  mission:'Na prawdziwym zegarze pokaż rodzicom małą i dużą wskazówkę.'},
+ {name:'Pełne godziny',say:'Pełne godziny',demoT:180,
+  goal:'Czyta i ustawia pełne godziny',
+  pool:()=>({h:rnd(H),m:0}),rounds:['pick','hourTap','set','pick','hourTap','set'],
+  intro:[{T:0,s:RULE1},{T:180,hl:'minute',s:'Gdy duża wskazówka stoi na dwunastce, na samej górze, jest pełna godzina.'},{T:180,hl:'hour',s:'Mała wskazówka pokazuje trójkę. Jest godzina trzecia.'},{T:420,hl:'hour',s:'A teraz mała wskazówka pokazuje siódemkę. Jest godzina siódma.'}],
+  mission:'Trzy razy w ciągu dnia powiedz rodzicom, która jest pełna godzina.'},
+ {name:'Wpół do',say:'Wpół do',quarters:true,demoT:210,
+  goal:'Wpół do = 30 min, mówimy o NASTĘPNEJ godzinie',
+  pool:()=>({h:rnd(H),m:30}),rounds:['pick','goingTo','set','review','goingTo','set'],
+  intro:[{T:180,s:'Jest godzina trzecia. Patrz, co się stanie.'},{T:210,hl:'minute',s:'Duża wskazówka zeszła na sam dół, na szóstkę. Minęło pół godziny, pół tortu.'},
+   {T:210,hl:'hour',s:'Mała wskazówka minęła trójkę, ale nie doszła jeszcze do czwórki. Jest w połowie drogi.'},{T:210,s:'Idziemy do czwartej. Dlatego mówimy: wpół do czwartej.'},
+   {T:240,hl:'hour',s:'Widzisz? Teraz jest czwarta.'},{T:240,s:'Zapamiętaj: '+RULE3},{T:510,s:'A to jest wpół do dziewiątej. Mała wskazówka idzie do dziewiątki.'}],
+  mission:'Zapytaj rodziców, o której wychodzicie. {sam} pilnuj zegara i powiedz, kiedy będzie wpół do.'},
+ {name:'Kwadrans po',say:'Kwadrans po',quarters:true,demoT:195,
+  goal:'Kwadrans po = 15 min, mówimy o godzinie, która MINĘŁA',
+  pool:()=>({h:rnd(H),m:15}),rounds:['pick','hourTap','set','review','pick','set'],
+  intro:[{T:180,s:'Godzina dzieli się na cztery kwadranse, jak tort pokrojony na cztery kawałki.'},{T:195,hl:'minute',s:'Duża wskazówka przeszła jeden kawałek, na trójkę. Minął jeden kwadrans.'},
+   {T:195,hl:'hour',s:RULE2+' Mała minęła trójkę.'},{T:195,s:'Mówimy: kwadrans po trzeciej.'},{T:375,s:'A to jest kwadrans po szóstej.'}],
+  mission:'Gdy usłyszysz od rodziców „kwadrans po”, spójrz na zegar i sprawdź, gdzie jest duża wskazówka.'},
+ {name:'Za kwadrans',say:'Za kwadrans',quarters:true,demoT:225,
+  goal:'Za kwadrans = 45 min, mówimy o NASTĘPNEJ godzinie',
+  pool:()=>({h:rnd(H),m:45}),rounds:['pick','goingTo','set','review','hourTap','set'],
+  intro:[{T:225,hl:'minute',s:'Duża wskazówka stoi na dziewiątce. Do pełnej godziny brakuje jednego kawałka tortu, jednego kwadransa.'},
+   {T:225,hl:'hour',s:'Mała wskazówka minęła trójkę i jest prawie na czwórce. Ale jeszcze jej nie minęła.'},{T:225,s:'Idziemy do czwartej. Mówimy: za kwadrans czwarta.'},
+   {T:240,s:'Kwadrans minął i jest czwarta.'},{T:240,s:'Zapamiętaj: '+RULE3},{T:645,s:'A to jest za kwadrans jedenasta.'}],
+  mission:'Zapytaj rodziców, ile minut ma kwadrans. A potem sprawdź na zegarze, czy to prawda.'},
+ {name:'Wszystko razem',say:'Wszystko razem',quarters:true,demoT:555,
+  goal:'Miesza pełne, wpół do, kwadrans po, za kwadrans',
+  pool:()=>({h:rnd(H),m:rnd([0,15,30,45])}),rounds:['pick','set','hourTap','goingTo','set','pick'],
+  intro:[{T:120,s:'Teraz wszystko razem. Trzy zasady.'},{T:120,s:'Pierwsza: '+RULE1},{T:135,hl:'hour',s:'Druga: '+RULE2},{T:150,s:'Trzecia: '+RULE3},{T:165,s:'Słuchaj uważnie!'}],
+  mission:'Trzy razy w ciągu dnia {sam} powiedz rodzicom, która jest godzina, zanim cię zapytają.'},
+ {name:'Po południu',say:'Godziny po południu',ring24:true,demoT:180,
+  goal:'13–22: rozumie, że 15 to 3 po południu; przelicza z ekranu cyfrowego',
+  pool:()=>({h:13+Math.floor(Math.random()*10),m:Math.random()<.7?0:30}),rounds:['event','pickdig','pick','digital','event','set'],
+  intro:[{T:0,s:'Doba ma dwadzieścia cztery godziny. Mała wskazówka obchodzi zegar dwa razy: przed południem i po południu.'},{T:720,s:'W południe jest dwunasta.'},
+   {T:780,s:'Potem liczymy dalej. Pierwsza po południu to trzynasta. Fioletowe liczby na zegarze pomagają.'},{T:900,s:'Trzecia po południu to piętnasta.'},
+   {T:1140,s:'Siódma wieczorem to dziewiętnasta.'},{T:1140,s:'Na ekranach, na przykład w samochodzie albo na piekarniku, często widać takie godziny.'}],
+  mission:'Znajdź zegar z cyframi, na przykład na piekarniku albo w samochodzie, i powiedz rodzicom, gdzie byłyby wskazówki.'}
+];
+const SANDBOX={name:'Zabawa'};
+
+/* ================= Nawigacja ================= */
+const $=id=>document.getElementById(id);
+let flow=0,cur=null;
+function show(id){for(const s of['home','game','parent'])$(s).hidden=s!==id;}
+$('bRepeat').onclick=()=>{if(cur&&cur.repeat)cur.repeat();else say(lastSay);};
+$('bHome').onclick=()=>goHome();
+$('bParent').onclick=()=>parentGate();
+$('bPBack').onclick=()=>goHome();
+
+function recommended(){for(let i=0;i<LEVELS.length;i++){if(unlocked(i)&&!mastered(i))return i;}return 6;}
+function goHome(greet){flow++;cur=null;hush();show('home');const rec=recommended();
+  const box=$('tiles');box.innerHTML='';
+  [...LEVELS,SANDBOX].forEach((L,i)=>{const isS=L===SANDBOX;const lock=!isS&&!unlocked(i);
+    const b=document.createElement('button');b.className='tile'+(lock?' locked':'')+(i===rec&&!isS?' rec':'');b.setAttribute('aria-label',L.name);
+    b.innerHTML=`<span class="num">${isS?'':i}</span>${lock?ICON.lock:(!isS&&mastered(i)?ICON.done:'')}<div class="mini"></div><div class="name">${L.name}</div><div class="stars">${isS?'':[1,2,3].map(k=>STAR(P(i).best>=k)).join('')}</div>`;
+    if(L.cake)b.querySelector('.mini').innerHTML=ICON.cake;
+    else{const c=new Clock(b.querySelector('.mini'),{ring24:!!L.ring24,quarters:!!L.quarters});c.set(isS?610:L.demoT);}
+    b.onclick=()=>{if(isS)return sandbox();if(lock)return say('Ta zabawa jest jeszcze zamknięta. Zdobądź trzy gwiazdki w poprzedniej zabawie.');startLevel(i);};
+    box.appendChild(b);});
+  if(greet){const nm=S.name?', '+S.name:'';
+    say(overLimit()?`Cześć${nm}! Dzisiaj ${G('ćwiczyłeś','ćwiczyłaś','ćwiczyliśmy')} już dużo. Zrób przerwę i poszukaj zegara w domu.`:`Cześć${nm}! ${G('Gotowy','Gotowa','Gotowi')} na zabawę? Dzisiaj ćwiczymy: ${LEVELS[rec].say}. Dotknij świecącej zabawy.`);}
+  setTimeout(()=>{if((voicesChecked&&!voice)||!synth)$('nov').hidden=false;},1500);}
+
+function dots(n,d){const el=$('dots');el.innerHTML='';for(let i=0;i<n;i++){const s=document.createElement('span');s.className='dot'+(i<d?' done':i===d?' now':'');el.appendChild(s);}}
+function title(t){$('dots').innerHTML=`<span class="lvl">${t}</span>`;}
+
+/* ================= Lekcja ================= */
+function startLevel(i){flow++;const L=LEVELS[i];show('game');title(L.name);
+  const st=$('stage');st.innerHTML=`<div class="bigclock" id="ic"></div><div class="row"><button class="ibtn" id="bAgain" aria-label="Posłuchaj jeszcze raz">${ICON.again}</button><button class="go" id="bPlay">${ICON.play}Graj</button></div>`;
+  const c=new Clock($('ic'),{ring24:!!L.ring24,quarters:!!L.quarters,hands:L.hands!==false});c.set(L.intro[0].T);
+  const run=async()=>{const me=++flow;await say(L.say+'.');
+    for(const s of L.intro){if(me!==flow)return;c.hl(null);await c.animateTo(s.T,1100);if(me!==flow)return;c.hl(s.hl||null);await say(s.s);await wait(250);}
+    c.hl(null);if(me===flow)say('Gotowe? Dotknij zielonego przycisku.');};
+  cur={repeat:run};$('bAgain').onclick=run;$('bPlay').onclick=()=>play(i);run();}
+
+/* ================= Gra ================= */
+const seenTip={};
+async function tip(k,text){if(seenTip[k])return;seenTip[k]=true;await say(text);}
+function praiseWord(){const p=rnd(['Brawo','Świetnie','Super','Tak jest','Doskonale']);return S.name&&Math.random()<.35?`${p}, ${S.name}!`:p+'!';}
+function praise(t){return `${praiseWord()} ${explain(toT(t),t.h>12)}`;}
+const tFromT=(T,pm)=>{let h=Math.floor(T/60)%12;if(h===0)h=12;return{h:pm&&h!==12?h+12:h,m:T%60};};
+
+function play(i){const my=++flow;const L=LEVELS[i];let r=0,mistakes=0;const used=new Set();show('game');
+  const gen=pool=>{let t,k=0;do{t=pool();k++;}while(used.has(fmt(t))&&k<30);used.add(fmt(t));return t;};
+  const ctx={L,my,gen,i};
+  const next=async()=>{if(my!==flow)return;if(r>=L.rounds.length)return finish(i,mistakes);
+    dots(L.rounds.length,r);const res=await TASKS[L.rounds[r]](ctx);
+    if(res===null||my!==flow)return;mistakes+=res;r++;dots(L.rounds.length,r);await wait(450);next();};
+  next();}
+
+function distractors(t,pool){const T=toT(t),out=new Set();const h=h12(t.h);const add=(hh,m)=>{const x=((((hh%12)+12)%12)*60+m+720)%720;if(x!==T)out.add(x);};
+  if(t.h>12){add(t.h%10||10,t.m);add(h+1,t.m);add(h-1,t.m);}
+  else if(t.m===0){add(0,h*5%60);add(h+1,0);add(h-1,0);}
+  else if(t.m===30){add(h+1,30);add(h-1,30);add(h,0);}
+  else if(t.m===15){add(h,45);add(h-1,45);add(h+1,15);}
+  else{add(h+1,45);add(h,15);add(h+1,15);}
+  const arr=[...out].sort(()=>Math.random()-.5).slice(0,2);
+  while(arr.length<2){const x=toT(pool());if(x!==T&&!arr.includes(x))arr.push(x);}
+  return arr;}
+
+/* wykrywanie typowych pułapek */
+function trapPick(t,wT){const w=tFromT(wT,t.h>12),h=h12(t.h),wh=h12(w.h);
+  let k=null,tp='';
+  if(t.h>12&&w.m===t.m&&wh===((t.h%10)||10)){k='24';tp=`Pamiętaj: ${NOM[t.h]} to ${NOM[h]} po południu, więc mała wskazówka musi być przy ${LOCN[h]}.`;}
+  else if(t.m===30&&w.m===30&&wh===nxt(h)){k='wpol';tp=`Pamiętaj: ${phrase12(t)} to połowa drogi do ${LOC[nxt(h)]}, więc mała wskazówka jeszcze nie doszła do ${GENN[nxt(h)]}.`;}
+  else if(t.m===45&&w.m===45&&wh===nxt(h)){k='zakw';tp=`Pamiętaj: przy ${phrase12(t)} mała wskazówka jest tuż przed ${INS[nxt(h)]}, jeszcze jej nie minęła.`;}
+  else if((t.m===15&&w.m===45)||(t.m===45&&w.m===15)){k='kwadr';tp='Pamiętaj: kwadrans po to duża na trójce, a za kwadrans to duża na dziewiątce.';}
+  else if(t.m===0&&w.m!==0){k='reka';tp='Pamiętaj: '+lc(RULE1);}
+  const want=t.h>12?`${phrase24(t)}, czyli ${phrase12(t)} po południu`:isJest(t);
+  return[k,`${G('Pomyliłeś się, nic nie szkodzi.','Pomyliłaś się, nic nie szkodzi.','Nic nie szkodzi.')} Na tym zegarze ${lc(explain(wT))} A szukamy: ${want}. ${tp?tp+' ':''}Spróbuj jeszcze raz.`];}
+
+function pickRound({t,my,ring24,quarters,pool,prompt}){return new Promise(async res=>{
+  const st=$('stage');st.innerHTML='<div class="opts" id="opts"></div>';const T=toT(t);
+  const all=[T,...distractors(t,pool)].sort(()=>Math.random()-.5);let miss=0,busy=false;
+  const q=prompt||`Na którym zegarze jest ${isJest(t)}?`;cur={repeat:()=>say(q)};
+  all.forEach(x=>{const b=document.createElement('button');b.className='opt';b.setAttribute('aria-label','zegar');
+    new Clock(b,{ring24,quarters}).set(x);$('opts').appendChild(b);
+    b.onclick=async()=>{if(busy||b.classList.contains('wrong'))return;
+      if(x===T){busy=true;b.classList.add('right');confetti();await say(praise(t));return res(my===flow?miss:null);}
+      miss++;b.classList.add('wrong');const[k,msg]=trapPick(t,x);if(k)addTrap(k);await say(msg);};});
+  await tip('pick','Posłuchaj i dotknij właściwego zegara.');if(my===flow)say(q);});}
+
+function setRound({t,my,ring24,quarters,prompt,top}){return new Promise(async res=>{
+  const st=$('stage');st.innerHTML=`${top||''}<div class="bigclock" id="sc"></div><button class="go" id="bCheck" aria-label="Sprawdź">${ICON.check}Sprawdź</button>`;
+  const c=new Clock($('sc'),{ring24,quarters,drag:true});const T=toT(t);c.set(T===0?360:0);let miss=0,busy=false;
+  const q=prompt||`Ustaw zegar. Ma być ${phrase(t)}.`;cur={repeat:()=>say(q)};
+  $('bCheck').onclick=async()=>{if(busy)return;busy=true;const now=norm(c.T);
+    if(now===T){c.hl(null);confetti();await say(praise(t));busy=false;return res(my===flow?miss:null);}
+    miss++;const m=now%60,h=h12(t.h),curH=Math.floor(now/60)%12||12;const mOk=m===t.m;
+    const hOk=t.m===0?curH===h:curH===h;let fix;
+    if(!mOk){fix=`Przesuń dużą wskazówkę ${MACC[t.m]}.`;c.hl('minute');}
+    else{if((t.m===30||t.m===45)&&curH===nxt(h))addTrap(t.m===30?'wpol':'zakw');if(t.h>12&&curH===((t.h%10)||10))addTrap('24');
+      fix=(t.h>12?`${cap(NOM[t.h])} to ${NOM[h]} po południu. `:'')+(t.m===0?`Przesuń małą wskazówkę na ${ACC[h]}.`:`Przesuń małą wskazówkę tak, żeby minęła ${ACC[h]}.`)+((t.m===30||t.m===45)&&t.h<=12?` Idziemy do ${LOC[nxt(h)]}, ale jeszcze nie doszliśmy.`:'');c.hl('hour');}
+    const msg=`${mOk||hOk?G('Byłeś blisko!','Byłaś blisko!','Prawie!'):'Popatrz.'} Teraz ${lc(explain(now))} A ma być ${phrase(t)}. ${fix}`;
+    if(miss>=3){await say('Zobacz, tak to wygląda.');c.hl(null);await c.animateTo(T,1200);await say(explain(T,t.h>12));busy=false;return res(my===flow?miss:null);}
+    await say(msg);busy=false;};
+  await tip('set','Przesuń wskazówki palcem. Duża niebieska to minuty, mała czerwona to godziny. Potem dotknij zielonego przycisku.');if(my===flow)say(q);});}
+
+/* tapnięcie liczby na tarczy */
+function numRound({my,t,hands,ring24,quarters,prompt,answer,onRight,onWrong}){return new Promise(async res=>{
+  const st=$('stage');st.innerHTML='<div class="bigclock" id="nc"></div>';
+  const c=new Clock($('nc'),{tap:true,hands,ring24,quarters});if(t)c.set(toT(t));let miss=0,busy=false;cur={repeat:()=>say(prompt)};
+  c.ontap=async p=>{if(busy||p.d<55||p.d>100)return;const n=Math.round(p.a/30)%12||12;busy=true;
+    if(n===answer){c.mark(n,'#BFEBD5');confetti();await say(onRight);return res(my===flow?miss:null);}
+    miss++;const mk=c.mark(n,'#FBD0CB');const w=onWrong(n);if(w.hl)c.hl(w.hl);await say(w.s);mk.remove();busy=false;};
+  await tip('num','Dotykaj liczb na zegarze.');if(my===flow)say(prompt);});}
+
+const TASKS={
+ num({my}){const v=rnd(['after12','after','before','after','before']);let n,ans,q;
+   if(v==='after12'||(v==='after'&&Math.random()<.25)){n=12;ans=1;q='Pokaż liczbę, która jest po dwunastce.';}
+   else if(v==='after'){n=rnd(H.slice(0,11));ans=n+1;q=`Pokaż liczbę, która jest po ${LOCN[n]}.`;}
+   else{n=rnd(H);ans=n===1?12:n-1;q=`Pokaż liczbę, która jest przed ${INS[n]}.`;}
+   const after=q.includes(' po ');
+   return numRound({my,hands:false,prompt:q,answer:ans,
+     onRight:`${praiseWord()} ${after?`Po ${LOCN[n]}`:`Przed ${INS[n]}`} jest ${NOMN[ans]}.`+((n===12&&after)||(n===1&&!after)?' Zegar to koło, liczby idą w kółko.':''),
+     onWrong:k=>{if(n===12||n===1)addTrap('kolo');return{s:`To jest ${NOMN[k]}. Szukamy liczby ${after?'po '+LOCN[n]:'przed '+INS[n]}. Spróbuj jeszcze raz.`};}});},
+ frac({my}){return new Promise(async res=>{const v=rnd([{k:2,q:'Pokaż pół tortu.',ok:'Pół tortu to dwa kawałki z czterech. Na zegarze pół godziny to pół tarczy.'},
+     {k:1,q:'Pokaż ćwiartkę tortu. To jeden kawałek z czterech.',ok:'Ćwiartka to jeden kawałek z czterech. Na zegarze taki kawałek to kwadrans.'},
+     {k:4,q:'Pokaż cały tort.',ok:'Cały tort to cztery kawałki. Na zegarze to cała godzina.'},{k:3,q:'Pokaż trzy kawałki tortu.',ok:'Trzy kawałki z czterech. Na zegarze to trzy kwadranse.'}]);
+   const ks=[v.k,...rnd([[1,2,3,4]]).filter(x=>x!==v.k).sort(()=>Math.random()-.5).slice(0,2)].sort(()=>Math.random()-.5);
+   const st=$('stage');st.innerHTML='<div class="opts" id="opts"></div>';let miss=0,busy=false;cur={repeat:()=>say(v.q)};
+   ks.forEach(k=>{const b=document.createElement('button');b.className='opt';b.innerHTML=pieSVG(k);b.setAttribute('aria-label','tort');$('opts').appendChild(b);
+     b.onclick=async()=>{if(busy||b.classList.contains('wrong'))return;
+       if(k===v.k){busy=true;b.classList.add('right');confetti();await say(praiseWord()+' '+v.ok);return res(my===flow?miss:null);}
+       miss++;b.classList.add('wrong');await say(`Tu ${k===1?'jest jeden kawałek':k===4?'są cztery kawałki':`są ${k===2?'dwa':'trzy'} kawałki`}. Spróbuj jeszcze raz.`);};});
+   say(v.q);});},
+ hand({my}){return new Promise(async res=>{const v=rnd([{q:'Dotknij małej wskazówki.',w:'hour'},{q:'Dotknij dużej wskazówki.',w:'minute'},{q:'Która wskazówka pokazuje godziny? Dotknij jej.',w:'hour'},{q:'Która wskazówka pokazuje minuty? Dotknij jej.',w:'minute'}]);
+   let T;do{T=Math.floor(Math.random()*48)*15;}while((()=>{const d=Math.abs(T/2-(T%60)*6)%360;return Math.min(d,360-d)<70;})());
+   const st=$('stage');st.innerHTML='<div class="bigclock" id="hc"></div>';const c=new Clock($('hc'),{tap:true});c.set(T);let miss=0,busy=false;cur={repeat:()=>say(v.q)};
+   const diff=(a,b)=>{const d=Math.abs(a-b)%360;return d>180?360-d:d;};
+   c.ontap=async p=>{if(busy)return;let got=null;
+     if(p.d<64&&diff(p.a,T/2)<30)got='hour';else if(p.d<96&&diff(p.a,(T%60)*6)<22)got='minute';
+     if(!got){say('Dotknij samej wskazówki.');return;}busy=true;c.hl(got);
+     if(got===v.w){confetti();await say(praiseWord()+' '+(got==='hour'?'Mała, czerwona wskazówka pokazuje godziny.':'Duża, niebieska wskazówka pokazuje minuty.'));c.hl(null);return res(my===flow?miss:null);}
+     miss++;addTrap('reka');await say(got==='hour'?'To jest mała wskazówka. Ona pokazuje godziny. Spróbuj jeszcze raz.':'To jest duża wskazówka. Ona pokazuje minuty. Spróbuj jeszcze raz.');c.hl(null);busy=false;};
+   say(v.q);});},
+ pick({L,my,gen}){const t=gen(L.pool);return pickRound({t,my,ring24:!!L.ring24,quarters:!!L.quarters,pool:L.pool});},
+ set({L,my,gen}){const t=gen(L.pool);return setRound({t,my,ring24:!!L.ring24,quarters:!!L.quarters});},
+ review({my,gen,i}){const j=2+Math.floor(Math.random()*(i-2));const R=LEVELS[j];const t=gen(R.pool);
+   return(async()=>{await say(`Powtórka: ${R.say.toLowerCase()}.`);return Math.random()<.5?pickRound({t,my,quarters:!!R.quarters,pool:R.pool}):setRound({t,my,quarters:!!R.quarters});})();},
+ hourTap({L,my,gen}){const t=gen(L.pool),h=h12(t.h);
+   const q=t.m===0?'Na którą liczbę pokazuje mała wskazówka? Dotknij tej liczby.':'Którą liczbę mała wskazówka już minęła? Dotknij tej liczby.';
+   return numRound({my,t,hands:true,quarters:!!L.quarters,prompt:q,answer:h,
+     onRight:`${praiseWord()} ${explain(toT(t))}`,
+     onWrong:k=>k===nxt(h)&&t.m?(addTrap(t.m===30?'wpol':t.m===45?'zakw':'kwadr'),{s:`Mała wskazówka jeszcze nie doszła do ${GENN[k]}. Którą liczbę już minęła?`,hl:'hour'}):{s:`To jest ${NOMN[k]}. Popatrz, gdzie jest mała, czerwona wskazówka.`,hl:'hour'}});},
+ goingTo({L,my,gen}){const t=gen(L.pool);if(t.m!==30&&t.m!==45)t.m=rnd([30,45]);const h=h12(t.h),n=nxt(h);
+   return numRound({my,t,hands:true,quarters:!!L.quarters,prompt:'Do której godziny idziemy? Dotknij tej liczby.',answer:n,
+     onRight:`Tak! ${explain(toT(t))}`,
+     onWrong:k=>k===h?(addTrap(t.m===30?'wpol':'zakw'),{s:`Mała wskazówka minęła już ${ACC[h]}. Idziemy do następnej liczby.`,hl:'hour'}):{s:`To jest ${NOMN[k]}. Popatrz na małą wskazówkę. Do której liczby idzie?`,hl:'hour'}});},
+ event({L,my}){const ev=rnd(S.events.filter(e=>e&&e.n&&e.h>12));const t=ev?{h:ev.h,m:ev.m}:L.pool();
+   const name=ev?ev.n:'Zabawa';const icon=t.h>=18?ICON.moon:ICON.sun;
+   return setRound({t,my,ring24:true,prompt:`${name} o ${LOC[t.h]}${MSUF[t.m]}. Ustaw zegar.`,top:`<div class="evt">${icon}<div class="dig">${fmt(t)}</div></div>`});},
+ digital({L,my,gen}){const t=gen(L.pool);return setRound({t,my,ring24:true,prompt:'Ustaw zegar tak, jak pokazuje ekran.',top:`<div class="dig">${fmt(t)}</div>`});},
+ pickdig({L,my,gen}){return new Promise(async res=>{const t=gen(L.pool),h=h12(t.h);
+   const opts=[t.h,(t.h%10)||10,rnd([t.h-1,t.h+1])].map(x=>({h:x,m:t.m}));opts.sort(()=>Math.random()-.5);
+   const st=$('stage');st.innerHTML=`<div class="evt">${t.h>=18?ICON.moon:ICON.sun}<div class="bigclock" id="pc" style="width:min(60vw,34vh,280px)"></div></div><div class="opts" id="opts"></div>`;
+   new Clock($('pc'),{ring24:true}).set(toT(t));let miss=0,busy=false;const q='Jest po południu. Która to godzina na ekranie? Dotknij właściwej.';cur={repeat:()=>say(q)};
+   opts.forEach(o=>{const b=document.createElement('button');b.className='dig';b.textContent=fmt(o);$('opts').appendChild(b);
+     b.onclick=async()=>{if(busy||b.classList.contains('wrong'))return;
+       if(o.h===t.h){busy=true;b.classList.add('right');confetti();await say(praise(t));return res(my===flow?miss:null);}
+       miss++;b.classList.add('wrong');if(o.h<12){addTrap('24');await say(`Uważaj! ${cap(NOM[h])} po południu to ${h} dodać dwanaście, czyli ${NOM[t.h]}.`);}
+       else await say('Hmm, policz jeszcze raz. Fioletowe liczby na zegarze pomagają.');};});
+   say(q);});}
+};
+
+async function finish(i,mistakes){const L=LEVELS[i];const n=mistakes<=1?3:mistakes<=3?2:1;const p=P(i);const wasUnlocked=unlocked(i+1);
+  p.best=Math.max(p.best,n);p.plays++;if(n===3&&!p.days.includes(today()))p.days.push(today());
+  if(!S.daysPlayed.includes(today()))S.daysPlayed.push(today());save();
+  dots(L.rounds.length,L.rounds.length);
+  const mis=L.mission.replace(/\. \{sam\}/,m=>'. '+cap(G('sam','sama','samodzielnie'))).replace('{sam}',G('sam','sama','samodzielnie'));
+  const st=$('stage');st.innerHTML=`<div class="bigstars">${[1,2,3].map(k=>STAR(k<=n)).join('')}</div>
+    <div class="mission">${ICON.target}<span>Misja na dziś: ${mis}</span></div>
+    <div class="row"><button class="ibtn" id="bRe" aria-label="Zagraj jeszcze raz">${ICON.again}</button><button class="go blue" id="bMenu">${ICON.play}Dalej</button></div>`;
+  confetti(160);
+  let t=`${praiseWord()} ${G('Zdobyłeś','Zdobyłaś','Zdobywasz')} ${['','jedną gwiazdkę','dwie gwiazdki','trzy gwiazdki'][n]}. `;
+  if(n<3)t+='Zagraj jeszcze raz. Za trzy gwiazdki otworzy się następna zabawa. ';
+  else if(mastered(i))t+=`Ta zabawa jest już opanowana! ${G('Jesteś mistrzem!','Jesteś mistrzynią!','')} `;
+  else t+='Jutro zagraj w nią jeszcze raz, a będzie opanowana. ';
+  if(n===3&&!wasUnlocked&&i<LEVELS.length-1)t+='Następna zabawa jest otwarta! ';
+  t+='Misja na dziś: '+mis;
+  if(overLimit())t+=` Dzisiaj ${G('ćwiczyłeś','ćwiczyłaś','ćwiczyliśmy')} już dość długo. Czas na przerwę.`;
+  cur={repeat:()=>say(t)};$('bRe').onclick=()=>play(i);$('bMenu').onclick=()=>goHome();say(t);}
+
+/* ================= Swobodna zabawa ================= */
+function sandbox(){flow++;show('game');title('Zabawa');
+  const st=$('stage');st.innerHTML=`<div class="bigclock" id="fc"></div><div class="digital" id="dig"></div><button class="go blue" id="bTell">${ICON.speak}Która godzina?</button>`;
+  const c=new Clock($('fc'),{ring24:true,quarters:true,drag:true});c.set(180);
+  const upd=()=>{const t=tFromT(norm(c.T),false);$('dig').innerHTML=`<span>${fmt(t)}</span><span class="pm">${t.h===12?'12':t.h+12}:${String(t.m).padStart(2,'0')}</span>`;return t;};
+  const tell=()=>{upd();say(explain(c.T,true));};
+  c.onchange=upd;c.onrelease=tell;upd();cur={repeat:tell};$('bTell').onclick=tell;
+  say('Kręć wskazówkami, a ja powiem, która jest godzina.');}
+
+/* ================= Panel rodzica ================= */
+const TRAPS={
+  kolo:['Po 12 nie wie, że jest 1','Liczcie w kółko na prawdziwej tarczy: „…jedenaście, dwanaście, jeden”.'],
+  reka:['Myli wskazówki','Wróć do etapu 1. Mówcie zawsze tym samym zdaniem: „mała – godziny, duża – minuty”.'],
+  wpol:['Wpół do: bierze złą godzinę (3:30 → „wpół do trzeciej”)','Na prawdziwym zegarze startujcie od 3:00 i powoli zsuwajcie dużą wskazówkę w dół: „idziemy do czwartej… jesteśmy w połowie drogi”.'],
+  zakw:['Za kwadrans: bierze złą godzinę','Pytaj „do której godziny idziemy?”, zamiast mówić „źle”.'],
+  kwadr:['Myli kwadrans po z za kwadrans','Tort: jeden kawałek minął (po) vs. jeden kawałek brakuje (za).'],
+  '24':['15 czyta jako 5','Najpierw stałe punkty dnia („obiad o piętnastej”), potem reguła „dodaj 12”.']
+};
+function parentGate(){hush();show('parent');const a=6+Math.floor(Math.random()*4),b=3+Math.floor(Math.random()*7);
+  $('pbody').innerHTML=`<div class="gate"><h3 style="font-family:var(--display);font-size:24px;margin:0">Tylko dla dorosłych</h3><p class="muted" style="margin:0">Ile to ${a} × ${b}?</p>
+    <div class="field" style="justify-content:center"><input id="gIn" type="number" inputmode="numeric" style="width:120px;font-size:22px"><button class="btn" id="gGo">Wejdź</button></div><p id="gErr" class="muted" hidden>Spróbuj jeszcze raz.</p></div>`;
+  const go=()=>{if(+$('gIn').value===a*b)parentPanel();else $('gErr').hidden=false;};
+  $('gGo').onclick=go;$('gIn').addEventListener('keydown',e=>{if(e.key==='Enter')go();});setTimeout(()=>$('gIn').focus(),50);}
+
+function parentPanel(){tickTime();const mins=Math.round(S.day.ms/60000);
+  const rows=LEVELS.map((L,i)=>{const p=P(i);const st=!unlocked(i)?'<span class="pill p-lock">zamknięty</span>':mastered(i)?'<span class="pill p-ok">opanowany</span>':'<span class="pill p-go">w trakcie</span>';
+    return`<tr><td><b>${i}. ${L.name}</b><br><span class="muted">${L.goal}</span></td><td>${'★'.repeat(p.best)}${'☆'.repeat(3-p.best)}</td><td>${p.days.length}/2</td><td>${st}</td></tr>`;}).join('');
+  const traps=Object.entries(S.traps).sort((a,b)=>b[1]-a[1]).filter(([k])=>TRAPS[k]);
+  const hours=[];for(let h=13;h<=22;h++)for(const m of[0,30])hours.push({h,m});
+  const evRows=[0,1,2,3,4].map(k=>{const e=S.events[k]||{n:'',h:15,m:0};return`<div class="field"><input type="text" id="evn${k}" value="${(e.n||'').replace(/"/g,'&quot;')}" placeholder="np. Basen" style="flex:1;min-width:120px"><select id="evh${k}">${hours.map(o=>`<option value="${o.h}:${o.m}"${o.h===e.h&&o.m===e.m?' selected':''}>${fmt(o)}</option>`).join('')}</select></div>`;}).join('');
+  $('pbody').innerHTML=`<div class="pdoc">
+   <div class="pcard"><h3>Postęp</h3><p class="muted">Etap otwiera się po 3 gwiazdkach w poprzednim. „Opanowany” = 3 gwiazdki w 2 różne dni. Świecący kafelek to etap polecany na dziś.</p>
+    <div class="tbl"><table><thead><tr><th>Etap</th><th>Najlepiej</th><th>Dni z 3★</th><th>Status</th></tr></thead><tbody>${rows}</tbody></table></div>
+    <p>Dzisiaj: <b>${mins} min</b>. Dni z grą: <b>${S.daysPlayed.length}</b>.</p>
+    <div class="field"><label for="lim">Przypomnienie o przerwie po</label><select id="lim">${[5,10,15,20].map(v=>`<option${v===S.limit?' selected':''}>${v}</option>`).join('')}</select> min</div></div>
+
+   <div class="pcard"><h3>Najczęstsze pomyłki</h3>${traps.length?`<ul>${traps.map(([k,v])=>`<li><b>${TRAPS[k][0]}</b> (${v}×). ${TRAPS[k][1]}</li>`).join('')}</ul>`:'<p class="muted">Jeszcze nic. Gra zapisuje tu typowe błędy, żeby było wiadomo, co ćwiczyć przy prawdziwym zegarze.</p>'}</div>
+
+   <div class="pcard"><h3>Jak uczyć</h3>
+    <ol><li><b>Jeden etap dziennie, 5–10 minut.</b> Krótko i codziennie działa lepiej niż godzina w weekend.</li>
+    <li><b>Pierwszy raz zagrajcie razem.</b> Lekcję słuchajcie wspólnie i pokazujcie to samo na prawdziwym zegarze.</li>
+    <li><b>Nie przyspieszaj.</b> Jeśli „wpół do” wejdzie przed pewnymi pełnymi godzinami, pojęcia się pomieszają.</li>
+    <li><b>Ustawianie wskazówek jest ważniejsze niż wybieranie zegara.</b> Wybór z trzech można zgadnąć.</li>
+    <li><b>Sprawdzaj na prawdziwym zegarze</b>, nie tylko po gwiazdkach. Na ekranie można nauczyć się wzoru obrazka bez zrozumienia.</li></ol>
+    <p><b>Trzy zasady, których gra uczy (używaj tych samych słów):</b></p>
+    <ol><li>${RULE1}</li><li>${RULE2}</li><li>${RULE3}</li></ol>
+    <p><b>Pułapka polszczyzny:</b> „wpół do czwartej” to 3:30. Dziecko widzi małą wskazówkę przy trójce i mówi „wpół do trzeciej”. Ten błąd wraca tygodniami. Gdy się pojawi, zamiast „źle” zapytaj: „Do której godziny idziemy?”.</p>
+    <p><b>Na co dzień:</b> zegar ze wskazówkami w widocznym miejscu; 2–3 pytania dziennie przy okazji („Która jest? Za ile wychodzimy?”); dziecko pilnuje godziny wyjścia; misja po każdym etapie.</p></div>
+
+   <div class="pcard"><h3>Godziny z dnia dziecka</h3><p class="muted">Etap „Po południu” używa tych zdarzeń („Obiad o piętnastej. Ustaw zegar.”). Wpisz stałe punkty dnia dziecka.</p>${evRows}
+    <div class="field"><button class="btn" id="evSave">Zapisz zdarzenia</button><span id="evOk" class="muted" hidden>Zapisano.</span></div></div>
+
+   <div class="pcard"><h3>Ustawienia</h3>
+    <div class="field"><label for="gd">Dziecko to</label><select id="gd"><option value="">nie podawaj (formy bezosobowe)</option><option value="m"${S.gender==='m'?' selected':''}>chłopiec</option><option value="f"${S.gender==='f'?' selected':''}>dziewczynka</option></select></div>
+    <div class="field"><label for="br">Wyjaśnienia po odpowiedzi</label><select id="br"><option value="0">pełne (gdzie są wskazówki i co to znaczy)</option><option value="1"${S.brief?' selected':''}>krótsze (tylko gdzie są wskazówki)</option></select></div>
+    <div class="field"><label for="nm">Imię dziecka (gra czasem chwali po imieniu)</label><input type="text" id="nm" value="${S.name.replace(/"/g,'&quot;')}" style="width:160px"></div>
+    <div class="field"><label><input type="checkbox" id="ua"${S.unlockAll?' checked':''}> Otwórz wszystkie etapy</label></div>
+    <div class="field"><button class="btn red" id="rs">Wyzeruj postęp</button><span id="rsC" hidden>Na pewno? <button class="btn red" id="rsY">Tak, wyzeruj</button> <button class="btn" id="rsN">Anuluj</button></span></div></div>
+  </div>`;
+  $('lim').onchange=e=>{S.limit=+e.target.value;save();};
+  $('br').onchange=e=>{S.brief=e.target.value==='1';save();};
+  $('gd').onchange=e=>{S.gender=e.target.value;save();};
+  $('nm').oninput=e=>{S.name=e.target.value.trim().slice(0,20);save();};
+  $('ua').onchange=e=>{S.unlockAll=e.target.checked;save();};
+  $('evSave').onclick=()=>{S.events=[0,1,2,3,4].map(k=>{const[h,m]=$('evh'+k).value.split(':').map(Number);return{n:$('evn'+k).value.trim().slice(0,30),h,m};}).filter(e=>e.n);
+    if(!S.events.length)S.events=DEFAULT_EVENTS;save();$('evOk').hidden=false;};
+  $('rs').onclick=()=>{$('rsC').hidden=false;};$('rsN').onclick=()=>{$('rsC').hidden=true;};
+  $('rsY').onclick=()=>{S.progress={};S.traps={};S.daysPlayed=[];save();parentPanel();};}
+
+/* ================= Konfetti ================= */
+const fx=$('fx'),ctx=fx.getContext('2d');let parts=[],raf=0;
+function confetti(n=70){if(matchMedia('(prefers-reduced-motion:reduce)').matches)return;fx.width=innerWidth;fx.height=innerHeight;
+  const cols=['#E4483A','#2A68D1','#FFBE33','#25A06A','#8A55C9'];
+  for(let i=0;i<n;i++)parts.push({x:innerWidth/2,y:innerHeight*.45,vx:(Math.random()-.5)*14,vy:-Math.random()*13-4,r:Math.random()*6+4,c:rnd(cols),a:Math.random()*6,life:90});
+  if(!raf)raf=requestAnimationFrame(tick);}
+function tick(){ctx.clearRect(0,0,fx.width,fx.height);parts=parts.filter(p=>p.life-->0);
+  for(const p of parts){p.vy+=.45;p.x+=p.vx;p.y+=p.vy;p.a+=.2;ctx.save();ctx.translate(p.x,p.y);ctx.rotate(p.a);ctx.fillStyle=p.c;ctx.globalAlpha=Math.min(1,p.life/30);ctx.fillRect(-p.r,-p.r/2,p.r*2,p.r);ctx.restore();}
+  raf=parts.length?requestAnimationFrame(tick):0;if(!raf)ctx.clearRect(0,0,fx.width,fx.height);}
+
+/* ================= Start ================= */
+new Clock($('startClock')).set(610);
+if(!S.gender)$('startHint').hidden=false;
+$('bStart').onclick=()=>{$('start').hidden=true;loadVoices();goHome(true);};
+</script>
+</body>
+</html>
